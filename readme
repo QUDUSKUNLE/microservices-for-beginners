@@ -1,0 +1,3 @@
+go work init ./authservice ./productservice ./apigateway ./orderservice ./notificationservice ./shared
+
+docker run -d --name rabbitmq -p 5672:5672 rabbitmq

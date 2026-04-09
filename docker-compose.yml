@@ -1,0 +1,159 @@
+
+networks:
+  observability:
+    driver: bridge
+
+services:
+
+
+  rabbitmq:
+    image: rabbitmq:latest
+    container_name: rabbitmq
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    networks:
+      - observability
+
+  otel-collector:
+    image: otel/opentelemetry-collector-contrib:latest
+    command: ["--config=/etc/otel.yaml"]
+    volumes:
+      - ./otel-collector.yaml:/etc/otel.yaml
+    ports:
+      - "4317:4317"
+    depends_on:
+      - tempo
+    networks:
+      - observability
+
+  tempo:
+    image: grafana/tempo:2.6.1   # ✅ pin to a stable release
+
+    container_name: tempo
+    command: ["-config.file=/etc/tempo.yaml"]
+    volumes:
+      - ./tempo.yaml:/etc/tempo.yaml
+    ports:
+      - "3200:3200"
+    networks:
+      - observability
+
+  prometheus:
+    image: prom/prometheus
+    container_name: prometheus
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml
+    ports:
+      - "9090:9090"
+    networks:
+      - observability
+
+  loki:
+    image: grafana/loki:2.9.0
+    container_name: loki
+    ports:
+      - "3100:3100"
+    networks:
+      - observability
+
+  promtail:
+    image: grafana/promtail:2.9.0
+    container_name: promtail
+    volumes:
+      - ./promtail.yaml:/etc/promtail/config.yml
+    depends_on:
+      - loki
+    networks:
+      - observability
+
+  grafana:
+    image: grafana/grafana
+    container_name: grafana
+    ports:
+      - "3000:3000"
+    depends_on:
+      - tempo
+      - prometheus
+      - loki
+    networks:
+      - observability
+
+  apigateway:
+    build: 
+      context: ./apigateway
+      dockerfile: Dockerfile
+    container_name: apigateway
+    ports:
+      - "8000:8000"
+    environment:
+      - PORT=8000
+      - AUTH_SERVICE_URL=http://authservice:8001
+      - PRODUCT_SERVICE_URL=http://productservice:8002
+      - ORDER_SERVICE_URL=http://orderservice:8003
+    depends_on:
+      - authservice
+      - productservice
+      - orderservice
+    restart: unless-stopped
+    networks:
+      - observability
+
+  authservice:
+    build: 
+      context: ./authservice
+      dockerfile: Dockerfile
+    container_name: authservice
+    ports:
+      - "8001:8001"
+    environment:
+      - PORT=8001
+    depends_on:
+      - otel-collector
+    restart: unless-stopped
+    networks:
+      - observability
+
+  notificationservice:
+    build: 
+      context: ./notificationservice
+      dockerfile: Dockerfile
+    container_name: notificationservice
+    environment:
+      - RABBITMQ_URL=amqp://guest:guest@rabbitmq:5672/
+    depends_on:
+      - rabbitmq
+    restart: unless-stopped
+    networks:
+      - observability
+
+  productservice:
+    build: 
+      context: ./productservice
+      dockerfile: Dockerfile
+    container_name: productservice
+    ports:
+      - "8002:8002"
+    environment:
+      - PORT=8002
+    restart: unless-stopped
+    networks:
+      - observability
+
+  orderservice:
+    build: 
+      context: ./orderservice
+      dockerfile: Dockerfile
+    container_name: orderservice
+    ports:
+      - "8003:8003"
+    environment:
+      - PORT=8003
+      - PRODUCT_SERVICE_URL=http://productservice:8002
+      - RABBITMQ_URL=amqp://guest:guest@rabbitmq:5672/
+    depends_on:
+      - rabbitmq
+      - productservice
+    restart: unless-stopped
+    networks:
+      - observability
