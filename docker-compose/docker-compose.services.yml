@@ -1,0 +1,93 @@
+version: "3.9"
+
+networks:
+  app-network:
+    driver: bridge
+
+services:
+
+  rabbitmq:
+    image: rabbitmq:latest
+    container_name: rabbitmq
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    networks:
+      - app-network
+
+  apigateway:
+    build:
+      context: ./apigateway
+      dockerfile: Dockerfile
+    container_name: apigateway
+    ports:
+      - "8000:8000"
+    environment:
+      - PORT=8000
+      - AUTH_SERVICE_URL=http://authservice:8001
+      - PRODUCT_SERVICE_URL=http://productservice:8002
+      - ORDER_SERVICE_URL=http://orderservice:8003
+    depends_on:
+      - authservice
+      - productservice
+      - orderservice
+    restart: unless-stopped
+    networks:
+      - app-network
+
+  authservice:
+    build:
+      context: ./authservice
+      dockerfile: Dockerfile
+    container_name: authservice
+    ports:
+      - "8001:8001"
+    environment:
+      - PORT=8001
+    restart: unless-stopped
+    networks:
+      - app-network
+
+  notificationservice:
+    build:
+      context: ./notificationservice
+      dockerfile: Dockerfile
+    container_name: notificationservice
+    environment:
+      - RABBITMQ_URL=amqp://guest:guest@rabbitmq:5672/
+    depends_on:
+      - rabbitmq
+    restart: unless-stopped
+    networks:
+      - app-network
+
+  productservice:
+    build:
+      context: ./productservice
+      dockerfile: Dockerfile
+    container_name: productservice
+    ports:
+      - "8002:8002"
+    environment:
+      - PORT=8002
+    restart: unless-stopped
+    networks:
+      - app-network
+
+  orderservice:
+    build:
+      context: ./orderservice
+      dockerfile: Dockerfile
+    container_name: orderservice
+    ports:
+      - "8003:8003"
+    environment:
+      - PORT=8003
+      - PRODUCT_SERVICE_URL=http://productservice:8002
+      - RABBITMQ_URL=amqp://guest:guest@rabbitmq:5672/
+    depends_on:
+      - rabbitmq
+      - productservice
+    restart: unless-stopped
+    networks:
+      - app-network

@@ -25,14 +25,11 @@ func main() {
 	repo := repository.NewUserRepo(db)
 	svc := service.NewAuthService(repo)
 	h := handler.NewAuthHandler(svc)
-
 	r := chi.NewRouter()
-
 	r.Get("/health", func(w http.ResponseWriter, r *http.Request) {
 		log.Print("health hit")
 		w.Write([]byte("hello from auth"))
 	})
-
 	r.Post("/register", func(w http.ResponseWriter, r *http.Request) {
 		otelhttp.NewHandler(http.HandlerFunc(h.Register), "register").ServeHTTP(w, r)
 	})
