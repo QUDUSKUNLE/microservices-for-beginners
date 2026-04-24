@@ -33,10 +33,11 @@ func main() {
 
 	port := os.Getenv("PORT")
 	if port == "" {
-		port = "8000"
+		port = "8003"
 	}
 
 	log.Println("Order Service running on ", port)
 	log.Fatal(http.ListenAndServe(":"+port, r))
 
 }
+
